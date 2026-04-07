@@ -1,0 +1,11 @@
+[package]
+name = "dynamo"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+aws-sdk-dynamodb = "1.104.0"
+flux-rs = { path = "../../flux-infer/lib/flux-rs" }
+
+[package.metadata.flux]
+enabled = true

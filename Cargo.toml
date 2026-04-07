@@ -1,0 +1,17 @@
+[package]
+name = "playground"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+dynamo = { path = "./dynamo" }
+flux-rs = { path = "../flux-infer/lib/flux-rs" }
+
+[package.metadata.flux]
+enabled = true
+include = [
+    "./dynamo/src/lib.rs"
+]
+
+# [workspace]
+# members = ["dynamo"]
