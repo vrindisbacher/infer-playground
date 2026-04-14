@@ -6,6 +6,10 @@ edition = "2024"
 [dependencies]
 aws-sdk-dynamodb = "1.104.0"
 flux-rs = { path = "../../flux-infer/lib/flux-rs" }
+flux-alloc = { path = "../../flux-infer/lib/flux-alloc" }
 
 [package.metadata.flux]
 enabled = true
+include = [
+    "src/lib.rs"
+]

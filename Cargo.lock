@@ -427,6 +427,7 @@ name = "dynamo"
 version = "0.1.0"
 dependencies = [
  "aws-sdk-dynamodb",
+ "flux-alloc",
  "flux-rs",
 ]
 
@@ -455,6 +456,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5baebc0774151f905a1a2cc41989300b1e6fbb29aff0ceffa1064fdd3088d582"
 
 [[package]]
+name = "flux-alloc"
+version = "0.1.0"
+dependencies = [
+ "flux-attrs",
+ "flux-core",
+]
+
+[[package]]
 name = "flux-attrs"
 version = "0.1.0"
 dependencies = [
@@ -468,6 +477,13 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "flux-core"
+version = "0.1.0"
+dependencies = [
+ "flux-attrs",
 ]
 
 [[package]]
@@ -925,6 +941,7 @@ name = "playground"
 version = "0.1.0"
 dependencies = [
  "dynamo",
+ "flux-alloc",
  "flux-rs",
 ]
 

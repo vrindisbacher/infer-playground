@@ -6,12 +6,13 @@ edition = "2024"
 [dependencies]
 dynamo = { path = "./dynamo" }
 flux-rs = { path = "../flux-infer/lib/flux-rs" }
+flux-alloc = { path = "../flux-infer/lib/flux-alloc" }
 
 [package.metadata.flux]
 enabled = true
-include = [
-    "./dynamo/src/lib.rs"
-]
+# include = [
+#     "./dynamo/src/lib.rs"
+# ]
 
-# [workspace]
-# members = ["dynamo"]
+[workspace]
+members = ["dynamo"]

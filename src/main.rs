@@ -49,16 +49,18 @@ fn main() {
 //     }
 // }
 
+extern crate flux_alloc;
+
 #[flux_rs::source]
 #[flux_rs::sig(fn (&DynamoClient, noise: usize) -> impl std::future::Future<Output = Result<(), ()>>)]
 async fn complex_calling_example(client: &DynamoClient, noise: usize) -> Result<(), ()> {
-    let dynamo_call = client.put_item().table_name("my-first_table".to_string());
+    let dynamo_call = client.put_item().table_name("my-first_table".to_owned());
     foo(dynamo_call, noise).await;
 
     // keep doing work
-    let mut second_dynamo_call = client.put_item().table_name("my-second-table".to_string());
+    let mut second_dynamo_call = client.put_item().table_name("my-second-table".to_owned());
     second_dynamo_call =
-        second_dynamo_call.item("1".to_string(), AttributeVal::s("HELLO".to_string()));
+        second_dynamo_call.item("1".to_owned(), AttributeVal::s("HELLO".to_owned()));
     let _ = second_dynamo_call.send().await;
 
     Ok(())
@@ -69,7 +71,7 @@ fn baz(noise: usize) -> bool {
 }
 
 async fn foo(mut dynamo_req: PutItemBuilder, noise: usize) {
-    dynamo_req = dynamo_req.item("2".to_string(), AttributeVal::s("HELLO".to_string()));
+    dynamo_req = dynamo_req.item("2".to_owned(), AttributeVal::s("HELLO".to_owned()));
     if baz(noise) {
         bar(dynamo_req).await;
     } else {
@@ -79,7 +81,7 @@ async fn foo(mut dynamo_req: PutItemBuilder, noise: usize) {
 
 async fn bar(dynamo_req: PutItemBuilder) {
     let _ = dynamo_req
-        .item("3".to_string(), AttributeVal::s("hello".to_string()))
+        .item("3".to_owned(), AttributeVal::s("hello".to_owned()))
         .send()
         .await;
 }
@@ -92,10 +94,10 @@ fn assert(b: bool) {}
 async fn simple_inline_example(client: &DynamoClient) -> Result<(), ()> {
     let _ = client
         .put_item()
-        .table_name("wawatable".to_string())
-        .item("1".to_string(), AttributeVal::s("HELLO".to_string()))
-        .item("2".to_string(), AttributeVal::s("PROFILE".to_string()))
-        .item("3".to_string(), AttributeVal::s("WORLD".to_string()))
+        .table_name("wawatable".to_owned())
+        .item("1".to_owned(), AttributeVal::s("HELLO".to_owned()))
+        .item("2".to_owned(), AttributeVal::s("PROFILE".to_owned()))
+        .item("3".to_owned(), AttributeVal::s("WORLD".to_owned()))
         .send()
         .await;
     Ok(())

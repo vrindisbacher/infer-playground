@@ -2,6 +2,8 @@ use std::collections::HashMap;
 
 use flux_rs::attrs::*;
 
+extern crate flux_alloc;
+
 // ==========================================================================
 // AttributeVal — opaque wrapper around aws_sdk_dynamodb::types::AttributeValue
 // ==========================================================================
@@ -114,12 +116,14 @@ impl AttributeVal {
     }
 }
 
+#[trusted]
 impl From<aws_sdk_dynamodb::types::AttributeValue> for AttributeVal {
     fn from(inner: aws_sdk_dynamodb::types::AttributeValue) -> Self {
         Self { inner }
     }
 }
 
+#[trusted]
 impl From<AttributeVal> for aws_sdk_dynamodb::types::AttributeValue {
     fn from(val: AttributeVal) -> Self {
         val.inner
@@ -134,15 +138,11 @@ pub struct DynamoClient {
     inner: aws_sdk_dynamodb::Client,
 }
 
+#[trusted]
 impl DynamoClient {
     #[sig(fn(aws_sdk_dynamodb::Client) -> DynamoClient)]
     pub fn new(inner: aws_sdk_dynamodb::Client) -> Self {
         Self { inner }
-    }
-
-    #[sig(fn(&DynamoClient) -> &aws_sdk_dynamodb::Client)]
-    pub fn inner(&self) -> &aws_sdk_dynamodb::Client {
-        &self.inner
     }
 
     #[sig(fn(&DynamoClient) -> GetItemBuilder[false, false])]
@@ -276,7 +276,7 @@ impl PutItemBuilder {
         }
     }
 
-    #[sig(fn(PutItemBuilder[@b], String[@s], HashMap<String, AttributeVal>[@m]) -> PutItemBuilder[{ items: m, ..b }])]
+    #[sig(fn(PutItemBuilder[@b], HashMap<String, AttributeVal>[@m]) -> PutItemBuilder{b_new: b_new.table_name == b.table_name })]
     pub fn set_item(self, item: HashMap<String, AttributeVal>) -> Self {
         let converted: HashMap<String, aws_sdk_dynamodb::types::AttributeValue> =
             item.into_iter().map(|(k, v)| (k, v.inner)).collect();
