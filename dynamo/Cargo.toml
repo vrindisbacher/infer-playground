@@ -10,6 +10,4 @@ flux-alloc = { path = "../../flux-infer/lib/flux-alloc" }
 
 [package.metadata.flux]
 enabled = true
-include = [
-    "src/lib.rs"
-]
+include = ["src/lib.rs"]

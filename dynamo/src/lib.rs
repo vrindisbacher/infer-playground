@@ -1,132 +1,86 @@
 use std::collections::HashMap;
 
+use aws_sdk_dynamodb::types::AttributeValue;
 use flux_rs::attrs::*;
 
 extern crate flux_alloc;
 
-// ==========================================================================
-// AttributeVal — opaque wrapper around aws_sdk_dynamodb::types::AttributeValue
-// ==========================================================================
-
-#[opaque]
-pub struct AttributeVal {
-    inner: aws_sdk_dynamodb::types::AttributeValue,
+#[reflect]
+enum MySort {
+    String,
+    Number,
+    Bool,
+    WhoCares,
 }
 
-#[trusted]
-impl AttributeVal {
-    #[sig(fn(String) -> AttributeVal)]
-    pub fn s(value: String) -> Self {
-        Self {
-            inner: aws_sdk_dynamodb::types::AttributeValue::S(value),
-        }
-    }
-
-    #[sig(fn(String) -> AttributeVal)]
-    pub fn n(value: String) -> Self {
-        Self {
-            inner: aws_sdk_dynamodb::types::AttributeValue::N(value),
-        }
-    }
-
-    #[sig(fn(bool) -> AttributeVal)]
-    pub fn bool(value: bool) -> Self {
-        Self {
-            inner: aws_sdk_dynamodb::types::AttributeValue::Bool(value),
-        }
-    }
-
-    #[sig(fn(bool) -> AttributeVal)]
-    pub fn null(value: bool) -> Self {
-        Self {
-            inner: aws_sdk_dynamodb::types::AttributeValue::Null(value),
-        }
-    }
-
-    #[sig(fn(Vec<String>) -> AttributeVal)]
-    pub fn ss(value: Vec<String>) -> Self {
-        Self {
-            inner: aws_sdk_dynamodb::types::AttributeValue::Ss(value),
-        }
-    }
-
-    #[sig(fn(Vec<String>) -> AttributeVal)]
-    pub fn ns(value: Vec<String>) -> Self {
-        Self {
-            inner: aws_sdk_dynamodb::types::AttributeValue::Ns(value),
-        }
-    }
-
-    #[sig(fn(Vec<AttributeVal>) -> AttributeVal)]
-    pub fn l(value: Vec<AttributeVal>) -> Self {
-        Self {
-            inner: aws_sdk_dynamodb::types::AttributeValue::L(
-                value.into_iter().map(|v| v.inner).collect(),
-            ),
-        }
-    }
-
-    #[sig(fn(HashMap<String, AttributeVal>) -> AttributeVal)]
-    pub fn m(value: HashMap<String, AttributeVal>) -> Self {
-        Self {
-            inner: aws_sdk_dynamodb::types::AttributeValue::M(
-                value.into_iter().map(|(k, v)| (k, v.inner)).collect(),
-            ),
-        }
-    }
-
-    #[sig(fn(&AttributeVal) -> bool)]
-    pub fn is_s(&self) -> bool {
-        self.inner.is_s()
-    }
-
-    #[sig(fn(&AttributeVal) -> Option<&String>)]
-    pub fn as_s(&self) -> Option<&String> {
-        self.inner.as_s().ok()
-    }
-
-    #[sig(fn(&AttributeVal) -> bool)]
-    pub fn is_n(&self) -> bool {
-        self.inner.is_n()
-    }
-
-    #[sig(fn(&AttributeVal) -> Option<&String>)]
-    pub fn as_n(&self) -> Option<&String> {
-        self.inner.as_n().ok()
-    }
-
-    #[sig(fn(&AttributeVal) -> bool)]
-    pub fn is_bool(&self) -> bool {
-        self.inner.is_bool()
-    }
-
-    #[sig(fn(&AttributeVal) -> Option<bool>)]
-    pub fn as_bool(&self) -> Option<bool> {
-        self.inner.as_bool().ok().copied()
-    }
-
-    #[sig(fn(AttributeVal) -> aws_sdk_dynamodb::types::AttributeValue)]
-    pub fn into_inner(self) -> aws_sdk_dynamodb::types::AttributeValue {
-        self.inner
-    }
-
-    #[sig(fn(aws_sdk_dynamodb::types::AttributeValue) -> AttributeVal)]
-    pub fn from_inner(inner: aws_sdk_dynamodb::types::AttributeValue) -> Self {
-        Self { inner }
-    }
+// TODO: Is there a better way to refine this????
+#[flux_rs::refined_by(
+    kind: MySort,
+    str_val: str,
+    bool_val: bool
+)]
+pub enum AttributeVal {
+    #[variant((_) -> AttributeVal[MySort::WhoCares, "", false])]
+    B(aws_sdk_dynamodb::primitives::Blob),
+    #[variant((bool[@b]) -> AttributeVal[MySort::Bool, "", b])]
+    Bool(bool),
+    #[variant((_) -> AttributeVal[MySort::WhoCares, "", false])]
+    Bs(std::vec::Vec<aws_sdk_dynamodb::primitives::Blob>),
+    #[variant((_) -> AttributeVal[MySort::WhoCares, "", false])]
+    L(std::vec::Vec<aws_sdk_dynamodb::types::AttributeValue>),
+    #[variant((_) -> AttributeVal[MySort::WhoCares, "", false])]
+    M(std::collections::HashMap<std::string::String, aws_sdk_dynamodb::types::AttributeValue>),
+    #[variant((String[@s]) -> AttributeVal[MySort::Number, s, false])]
+    N(String),
+    #[variant((_) -> AttributeVal[MySort::WhoCares, "", false])]
+    Ns(std::vec::Vec<std::string::String>),
+    #[variant((_) -> AttributeVal[MySort::WhoCares, "", false])]
+    Null(bool),
+    #[variant((String[@s]) -> AttributeVal[MySort::String, s, false])]
+    S(std::string::String),
+    #[variant((_) -> AttributeVal[MySort::WhoCares, "", false])]
+    Ss(std::vec::Vec<::std::string::String>),
+    #[variant(AttributeVal[MySort::WhoCares, "", false])]
+    #[non_exhaustive]
+    Unknown,
 }
 
-#[trusted]
-impl From<aws_sdk_dynamodb::types::AttributeValue> for AttributeVal {
-    fn from(inner: aws_sdk_dynamodb::types::AttributeValue) -> Self {
-        Self { inner }
+impl From<AttributeValue> for AttributeVal {
+    fn from(value: AttributeValue) -> Self {
+        match value {
+            AttributeValue::B(blob) => AttributeVal::B(blob),
+            AttributeValue::Bool(b) => AttributeVal::Bool(b),
+            AttributeValue::Bs(blobs) => AttributeVal::Bs(blobs),
+            AttributeValue::L(attribute_values) => AttributeVal::L(attribute_values),
+            AttributeValue::M(hash_map) => AttributeVal::M(hash_map),
+            AttributeValue::N(n) => AttributeVal::N(n),
+            AttributeValue::Ns(items) => AttributeVal::Ns(items),
+            AttributeValue::Null(b) => AttributeVal::Null(b),
+            AttributeValue::S(s) => AttributeVal::S(s),
+            AttributeValue::Ss(items) => AttributeVal::Ss(items),
+            _ => AttributeVal::Unknown,
+        }
     }
 }
 
 #[trusted]
 impl From<AttributeVal> for aws_sdk_dynamodb::types::AttributeValue {
     fn from(val: AttributeVal) -> Self {
-        val.inner
+        match val {
+            AttributeVal::B(blob) => aws_sdk_dynamodb::types::AttributeValue::B(blob),
+            AttributeVal::Bool(b) => aws_sdk_dynamodb::types::AttributeValue::Bool(b),
+            AttributeVal::Bs(blobs) => aws_sdk_dynamodb::types::AttributeValue::Bs(blobs),
+            AttributeVal::L(attribute_values) => {
+                aws_sdk_dynamodb::types::AttributeValue::L(attribute_values)
+            }
+            AttributeVal::M(hash_map) => aws_sdk_dynamodb::types::AttributeValue::M(hash_map),
+            AttributeVal::N(n) => aws_sdk_dynamodb::types::AttributeValue::N(n),
+            AttributeVal::Ns(items) => aws_sdk_dynamodb::types::AttributeValue::Ns(items),
+            AttributeVal::Null(b) => aws_sdk_dynamodb::types::AttributeValue::Null(b),
+            AttributeVal::S(s) => aws_sdk_dynamodb::types::AttributeValue::S(s),
+            AttributeVal::Ss(items) => aws_sdk_dynamodb::types::AttributeValue::Ss(items),
+            AttributeVal::Unknown => todo!(),
+        }
     }
 }
 
@@ -203,14 +157,14 @@ impl GetItemBuilder {
     #[sig(fn(GetItemBuilder[@b], _, AttributeVal) -> GetItemBuilder[b.has_table, true])]
     pub fn key(self, key: impl Into<String>, value: AttributeVal) -> Self {
         Self {
-            inner: self.inner.key(key, value.inner),
+            inner: self.inner.key(key, value.into()),
         }
     }
 
     #[sig(fn(GetItemBuilder[@b], HashMap<String, AttributeVal>) -> GetItemBuilder[b.has_table, true])]
     pub fn set_key(self, key: HashMap<String, AttributeVal>) -> Self {
         let converted: HashMap<String, aws_sdk_dynamodb::types::AttributeValue> =
-            key.into_iter().map(|(k, v)| (k, v.inner)).collect();
+            key.into_iter().map(|(k, v)| (k, v.into())).collect();
         Self {
             inner: self.inner.set_key(Some(converted)),
         }
@@ -242,11 +196,9 @@ impl GetItemOutput {
 
     #[sig(fn(GetItemOutput) -> Option<HashMap<String, AttributeVal>>)]
     pub fn into_item(self) -> Option<HashMap<String, AttributeVal>> {
-        self.inner.item.map(|m| {
-            m.into_iter()
-                .map(|(k, v)| (k, AttributeVal { inner: v }))
-                .collect()
-        })
+        self.inner
+            .item
+            .map(|m| m.into_iter().map(|(k, v)| (k, v.into())).collect())
     }
 }
 
@@ -272,20 +224,20 @@ impl PutItemBuilder {
     #[sig(fn(PutItemBuilder[@b], String[@s], AttributeVal[@v]) -> PutItemBuilder[{ items: map_store(b.items, s, v), ..b }])]
     pub fn item(self, key: String, value: AttributeVal) -> Self {
         Self {
-            inner: self.inner.item(key, value.inner),
+            inner: self.inner.item(key, value.into()),
         }
     }
 
     #[sig(fn(PutItemBuilder[@b], HashMap<String, AttributeVal>[@m]) -> PutItemBuilder{b_new: b_new.table_name == b.table_name })]
     pub fn set_item(self, item: HashMap<String, AttributeVal>) -> Self {
         let converted: HashMap<String, aws_sdk_dynamodb::types::AttributeValue> =
-            item.into_iter().map(|(k, v)| (k, v.inner)).collect();
+            item.into_iter().map(|(k, v)| (k, v.into())).collect();
         Self {
             inner: self.inner.set_item(Some(converted)),
         }
     }
 
-    #[sink]
+    #[sink(DynamoPut)]
     #[sig(fn(PutItemBuilder) -> _)]
     pub async fn send(
         self,
@@ -305,11 +257,9 @@ pub struct PutItemOutput {
 #[trusted]
 impl PutItemOutput {
     pub fn into_attributes(self) -> Option<HashMap<String, AttributeVal>> {
-        self.inner.attributes.map(|m| {
-            m.into_iter()
-                .map(|(k, v)| (k, AttributeVal { inner: v }))
-                .collect()
-        })
+        self.inner
+            .attributes
+            .map(|m| m.into_iter().map(|(k, v)| (k, v.into())).collect())
     }
 }
 
@@ -335,14 +285,14 @@ impl DeleteItemBuilder {
     #[sig(fn(DeleteItemBuilder[@b], _, AttributeVal) -> DeleteItemBuilder[b.has_table, true])]
     pub fn key(self, key: impl Into<String>, value: AttributeVal) -> Self {
         Self {
-            inner: self.inner.key(key, value.inner),
+            inner: self.inner.key(key, value.into()),
         }
     }
 
     #[sig(fn(DeleteItemBuilder[@b], HashMap<String, AttributeVal>) -> DeleteItemBuilder[b.has_table, true])]
     pub fn set_key(self, key: HashMap<String, AttributeVal>) -> Self {
         let converted: HashMap<String, aws_sdk_dynamodb::types::AttributeValue> =
-            key.into_iter().map(|(k, v)| (k, v.inner)).collect();
+            key.into_iter().map(|(k, v)| (k, v.into())).collect();
         Self {
             inner: self.inner.set_key(Some(converted)),
         }
@@ -371,11 +321,9 @@ pub struct DeleteItemOutput {
 impl DeleteItemOutput {
     #[sig(fn(DeleteItemOutput) -> Option<HashMap<String, AttributeVal>>)]
     pub fn into_attributes(self) -> Option<HashMap<String, AttributeVal>> {
-        self.inner.attributes.map(|m| {
-            m.into_iter()
-                .map(|(k, v)| (k, AttributeVal { inner: v }))
-                .collect()
-        })
+        self.inner
+            .attributes
+            .map(|m| m.into_iter().map(|(k, v)| (k, v.into())).collect())
     }
 }
 
@@ -401,14 +349,14 @@ impl UpdateItemBuilder {
     #[sig(fn(UpdateItemBuilder[@b], _, AttributeVal) -> UpdateItemBuilder[b.has_table, true])]
     pub fn key(self, key: impl Into<String>, value: AttributeVal) -> Self {
         Self {
-            inner: self.inner.key(key, value.inner),
+            inner: self.inner.key(key, value.into()),
         }
     }
 
     #[sig(fn(UpdateItemBuilder[@b], HashMap<String, AttributeVal>) -> UpdateItemBuilder[b.has_table, true])]
     pub fn set_key(self, key: HashMap<String, AttributeVal>) -> Self {
         let converted: HashMap<String, aws_sdk_dynamodb::types::AttributeValue> =
-            key.into_iter().map(|(k, v)| (k, v.inner)).collect();
+            key.into_iter().map(|(k, v)| (k, v.into())).collect();
         Self {
             inner: self.inner.set_key(Some(converted)),
         }
@@ -435,7 +383,7 @@ impl UpdateItemBuilder {
     #[sig(fn(UpdateItemBuilder[@b], _, AttributeVal) -> UpdateItemBuilder[b.has_table, b.has_key])]
     pub fn expression_attribute_values(self, key: impl Into<String>, value: AttributeVal) -> Self {
         Self {
-            inner: self.inner.expression_attribute_values(key, value.inner),
+            inner: self.inner.expression_attribute_values(key, value.into()),
         }
     }
 
@@ -462,11 +410,9 @@ pub struct UpdateItemOutput {
 impl UpdateItemOutput {
     #[sig(fn(UpdateItemOutput) -> Option<HashMap<String, AttributeVal>>)]
     pub fn into_attributes(self) -> Option<HashMap<String, AttributeVal>> {
-        self.inner.attributes.map(|m| {
-            m.into_iter()
-                .map(|(k, v)| (k, AttributeVal { inner: v }))
-                .collect()
-        })
+        self.inner
+            .attributes
+            .map(|m| m.into_iter().map(|(k, v)| (k, v.into())).collect())
     }
 }
 
@@ -531,14 +477,14 @@ impl QueryBuilder {
     #[sig(fn(QueryBuilder[@b], _, AttributeVal) -> QueryBuilder[b.has_table, b.has_key_condition])]
     pub fn expression_attribute_values(self, key: impl Into<String>, value: AttributeVal) -> Self {
         Self {
-            inner: self.inner.expression_attribute_values(key, value.inner),
+            inner: self.inner.expression_attribute_values(key, value.into()),
         }
     }
 
     #[sig(fn(QueryBuilder[@b], HashMap<String, AttributeVal>) -> QueryBuilder[b.has_table, b.has_key_condition])]
     pub fn set_expression_attribute_values(self, values: HashMap<String, AttributeVal>) -> Self {
         let converted: HashMap<String, aws_sdk_dynamodb::types::AttributeValue> =
-            values.into_iter().map(|(k, v)| (k, v.inner)).collect();
+            values.into_iter().map(|(k, v)| (k, v.into())).collect();
         Self {
             inner: self.inner.set_expression_attribute_values(Some(converted)),
         }
@@ -570,7 +516,7 @@ impl QueryOutput {
             .iter()
             .map(|item| {
                 item.iter()
-                    .map(|(k, v)| (k.clone(), AttributeVal { inner: v.clone() }))
+                    .map(|(k, v)| (k.clone(), v.clone().into()))
                     .collect()
             })
             .collect()
@@ -585,7 +531,7 @@ impl QueryOutput {
     pub fn last_evaluated_key(&self) -> Option<HashMap<String, AttributeVal>> {
         self.inner.last_evaluated_key().map(|m| {
             m.iter()
-                .map(|(k, v)| (k.clone(), AttributeVal { inner: v.clone() }))
+                .map(|(k, v)| (k.clone(), v.clone().into()))
                 .collect()
         })
     }
@@ -596,11 +542,7 @@ impl QueryOutput {
             .items
             .unwrap_or_default()
             .into_iter()
-            .map(|item| {
-                item.into_iter()
-                    .map(|(k, v)| (k, AttributeVal { inner: v }))
-                    .collect()
-            })
+            .map(|item| item.into_iter().map(|(k, v)| (k, v.into())).collect())
             .collect()
     }
 }
