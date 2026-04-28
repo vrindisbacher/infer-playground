@@ -1,128 +1,176 @@
-use dynamo::{AttributeVal, DynamoClient, PutItemBuilder};
+use aws_config::BehaviorVersion;
+use axum::{
+    Router,
+    extract::{Path, State},
+    http::StatusCode,
+    response::Json,
+    routing::{delete, get, post},
+};
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use terrapin_dynamo_sdk::{AttributeVal, DynamoClient};
+use uuid::Uuid;
 
-fn main() {
-    // let _ = simple_inline_example(&MyClient {});
+const TABLE: &str = "todos";
+
+struct AppState {
+    db: DynamoClient,
 }
 
-// #[flux_rs::source]
-// #[flux_rs::sig(fn () -> ())]
-// fn foo() {
-//     let mut keys = Keys::new();
-//     keys = keys.add("hello");
-//     bar(keys);
-// }
-
-// fn b() -> bool {
-//     todo!()
-// }
-
-// fn bar(mut keys: Keys) {
-//     // if b() {
-//     keys = keys.add("world");
-//     baz(keys);
-//     // } else {
-//     //     keys = keys.add("baz");
-//     //     baz(keys);
-//     // }
-// }
-
-// #[flux_rs::sink]
-// fn baz(keys: Keys) {
-//     assert(10 < 11);
-// }
-
-// #[flux_rs::opaque]
-// #[flux_rs::refined_by(keys: Set<str>)]
-// pub struct Keys;
-
-// impl Keys {
-//     #[flux_rs::trusted]
-//     #[flux_rs::sig(fn () -> Self[set_empty(0)])]
-//     pub fn new() -> Self {
-//         Self {}
-//     }
-
-//     #[flux_rs::trusted]
-//     #[flux_rs::sig(fn (Self[@keys], &str[@k]) -> Self[{ keys: set_union(keys, set_singleton(k)) }])]
-//     pub fn add(self, key: &str) -> Self {
-//         Self {}
-//     }
-// }
-
-extern crate flux_alloc;
-
-// #[flux_rs::source]
-// #[flux_rs::sig(fn (&DynamoClient, noise: usize) -> impl std::future::Future<Output = Result<(), ()>>)]
-// async fn complex_calling_example(client: &DynamoClient, noise: usize) -> Result<(), ()> {
-//     let dynamo_call = client.put_item().table_name("my-first_table".to_owned());
-//     foo(dynamo_call, noise).await;
-
-//     // keep doing work
-//     let mut second_dynamo_call = client.put_item().table_name("my-second-table".to_owned());
-//     second_dynamo_call =
-//         second_dynamo_call.item("1".to_owned(), AttributeVal::S("HELLO".to_owned()));
-//     let _ = second_dynamo_call.send().await;
-
-//     Ok(())
-// }
-
-#[flux_rs::source]
-#[flux_rs::sig(fn (&DynamoClient, noise: usize) -> impl std::future::Future<Output = Result<(), ()>>)]
-async fn complex_calling_example(client: &DynamoClient, noise: usize) -> Result<(), ()> {
-    let dynamo_call = client.put_item().table_name("my-first_table".to_owned());
-    foo(dynamo_call, noise).await;
-
-    // NOTE: THIS combined with FOO breaks for now
-    // let mut second_dynamo_call = client.put_item().table_name("my-second-table".to_owned());
-    // second_dynamo_call =
-    //     second_dynamo_call.item("1".to_owned(), AttributeVal::S("HELLO".to_owned()));
-    // let _ = second_dynamo_call.send().await;
-
-    Ok(())
+#[derive(Serialize, Deserialize)]
+struct Todo {
+    id: String,
+    title: String,
+    done: bool,
 }
 
-fn baz(noise: usize) -> bool {
-    noise > 99
+#[derive(Deserialize)]
+struct CreateTodo {
+    title: String,
 }
 
-async fn foo(mut dynamo_req: PutItemBuilder, noise: usize) {
-    dynamo_req = dynamo_req.item("2".to_owned(), AttributeVal::S("HELLO".to_owned()));
-    if baz(noise) {
-        bar(dynamo_req).await;
-    } else {
-        let _ = dynamo_req.send().await;
-    }
+#[tokio::main]
+async fn main() {
+    let config = aws_config::load_defaults(BehaviorVersion::latest()).await;
+    let client = DynamoClient::new(aws_sdk_dynamodb::Client::new(&config));
+    let state = Arc::new(AppState { db: client });
+
+    let app = Router::new()
+        .route("/todos", get(list_todos))
+        .route("/todos", post(create_todo))
+        .route("/todos/:id", get(get_todo))
+        .route("/todos/:id/done", post(mark_done))
+        .route("/todos/:id", delete(delete_todo))
+        .with_state(state);
+
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    axum::serve(listener, app).await.unwrap();
 }
 
-async fn bar(dynamo_req: PutItemBuilder) {
-    let _ = dynamo_req
-        .item("3".to_owned(), AttributeVal::S("hello".to_owned()))
-        .send()
-        .await;
-}
+#[flux_rs::source(["/todos"])]
+#[flux_rs::sig(fn (State<Arc<AppState>>, Json<CreateTodo>) -> impl std::future::Future<Output = Result<Json<Todo>, StatusCode>>)]
+async fn create_todo(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<CreateTodo>,
+) -> Result<Json<Todo>, StatusCode> {
+    let id = Uuid::new_v4().to_string();
 
-#[flux_rs::sig(fn (b: bool) requires b)]
-fn assert(b: bool) {}
-
-#[flux_rs::source]
-#[flux_rs::sig(fn (&DynamoClient) -> impl std::future::Future<Output = Result<(), ()>>)]
-async fn simple_inline_example(client: &DynamoClient) -> Result<(), ()> {
-    let _ = client
+    state
+        .db
         .put_item()
-        .table_name("my-second-table".to_owned())
-        .item("1".to_owned(), AttributeVal::S("HELLO".to_owned()))
-        .item("2".to_owned(), AttributeVal::Bool(true))
-        .item("3".to_owned(), AttributeVal::S("WORLD".to_owned()))
+        .table_name("todos".to_owned())
+        .item("id".to_owned(), AttributeVal::S(id.clone()))
+        .item("title".to_owned(), AttributeVal::S(body.title.clone()))
+        .item("done".to_owned(), AttributeVal::Bool(false))
         .send()
-        .await;
-    Ok(())
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(Todo {
+        id,
+        title: body.title,
+        done: false,
+    }))
 }
 
-// {
-//     table_name: 1,
-//     item_map: Map({
-//         1: "HELLO",
-//         2: "PROFILE",
-//         ...
-//     })
-// }
+#[flux_rs::source(["/todos/:id"])]
+#[flux_rs::sig(fn (State<Arc<AppState>>, Path<String>) -> impl std::future::Future<Output = Result<Json<Todo>, StatusCode>>)]
+async fn get_todo(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Result<Json<Todo>, StatusCode> {
+    let table = TABLE;
+    let output = state
+        .db
+        .get_item()
+        .table_name(table)
+        .key("id", AttributeVal::S(id))
+        .send()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let item = output.into_item().ok_or(StatusCode::NOT_FOUND)?;
+
+    let todo = item_to_todo(&item)?;
+    Ok(Json(todo))
+}
+
+#[flux_rs::source(["/todos"])]
+#[flux_rs::sig(fn (State<Arc<AppState>>) -> impl std::future::Future<Output = Result<Json<Todo>, StatusCode>>)]
+async fn list_todos(State(state): State<Arc<AppState>>) -> Result<Json<Vec<Todo>>, StatusCode> {
+    let table = TABLE;
+    let output = state
+        .db
+        .query()
+        .table_name(table)
+        .key_condition_expression("done = :done")
+        .expression_attribute_values(":done", AttributeVal::Bool(false))
+        .send()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let todos = output
+        .into_items()
+        .iter()
+        .filter_map(|item| item_to_todo(item).ok())
+        .collect();
+
+    Ok(Json(todos))
+}
+
+#[flux_rs::source(["/todos/:id/done"])]
+#[flux_rs::sig(fn (State<Arc<AppState>>, Path<String>) -> impl std::future::Future<Output = Result<StatusCode, StatusCode>>)]
+async fn mark_done(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    let table = TABLE;
+    state
+        .db
+        .update_item()
+        .table_name(table)
+        .key("id", AttributeVal::S(id))
+        .update_expression("SET done = :done")
+        .expression_attribute_values(":done", AttributeVal::Bool(true))
+        .send()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[flux_rs::source(["/todo/:id"])]
+#[flux_rs::sig(fn (State<Arc<AppState>>, Path<String>) -> impl std::future::Future<Output = Result<StatusCode, StatusCode>>)]
+async fn delete_todo(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    let table = TABLE;
+    state
+        .db
+        .delete_item()
+        .table_name(table)
+        .key("id", AttributeVal::S(id))
+        .send()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+fn item_to_todo(item: &terrapin_dynamo_sdk::util::AttributeMap) -> Result<Todo, StatusCode> {
+    let id = match item.get("id") {
+        Some(AttributeVal::S(s)) => s.clone(),
+        _ => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+    };
+    let title = match item.get("title") {
+        Some(AttributeVal::S(s)) => s.clone(),
+        _ => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+    };
+    let done = match item.get("done") {
+        Some(AttributeVal::Bool(b)) => *b,
+        _ => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+    };
+
+    Ok(Todo { id, title, done })
+}
