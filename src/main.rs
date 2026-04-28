@@ -11,8 +11,6 @@ use std::sync::Arc;
 use terrapin_dynamo_sdk::{AttributeVal, DynamoClient};
 use uuid::Uuid;
 
-const TABLE: &str = "todos";
-
 struct AppState {
     db: DynamoClient,
 }
@@ -79,7 +77,7 @@ async fn get_todo(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<Json<Todo>, StatusCode> {
-    let table = TABLE;
+    let table = "todos";
     let output = state
         .db
         .get_item()
@@ -98,7 +96,7 @@ async fn get_todo(
 #[flux_rs::source(["/todos"])]
 #[flux_rs::sig(fn (State<Arc<AppState>>) -> impl std::future::Future<Output = Result<Json<Todo>, StatusCode>>)]
 async fn list_todos(State(state): State<Arc<AppState>>) -> Result<Json<Vec<Todo>>, StatusCode> {
-    let table = TABLE;
+    let table = "todos";
     let output = state
         .db
         .query()
@@ -124,7 +122,7 @@ async fn mark_done(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
-    let table = TABLE;
+    let table = "todos";
     state
         .db
         .update_item()
@@ -145,7 +143,7 @@ async fn delete_todo(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
-    let table = TABLE;
+    let table = "todos";
     state
         .db
         .delete_item()
