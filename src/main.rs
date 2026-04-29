@@ -9,6 +9,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use terrapin_dynamo_sdk::{AttributeVal, DynamoClient};
+use terrapin_s3_sdk::S3Client;
 use uuid::Uuid;
 
 struct AppState {
@@ -43,6 +44,17 @@ async fn main() {
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     axum::serve(listener, app).await.unwrap();
+}
+
+#[flux_rs::source(["blah_blah"])]
+#[flux_rs::sig(fn (S3Client) -> impl std::future::Future<Output = ()>)]
+async fn put_bytes_in_s3(client: S3Client) {
+    let _ = client
+        .get_object()
+        .bucket("my-bucket")
+        .key("wooho")
+        .send()
+        .await;
 }
 
 #[flux_rs::source(["/todos"])]

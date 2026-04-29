@@ -1,0 +1,6 @@
+{
+  "endpoints": {
+    "dynamodb": "https://dynamodb.us-east-1.amazonaws.com",
+    "s3": "https://s3.us-east-1.amazonaws.com"
+  }
+}

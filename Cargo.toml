@@ -9,6 +9,7 @@ tokio = { version = "1.52.1", features = ["rt-multi-thread"] }
 flux-rs = { git = "https://github.com/vrindisbacher/flux-inferx" }
 flux-alloc = { git = "https://github.com/vrindisbacher/flux-inferx" }
 terrapin-dynamo-sdk = { path = "../membership-app/terrapin-dynamo-sdk/" }
+terrapin-s3-sdk = { path = "../membership-app/terrapin-s3-sdk/" }
 axum = "0.8.9"
 uuid = { version = "1.23.1", features = ["v4"] }
 aws-config = "1.8.16"
